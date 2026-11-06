@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>오늘의 순서표</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1d2733;--sub:#5b6776;--line:#d9dee5;--accent:#2f4a6d;--ok:#1f7a3d;--warn:#8a4b00;--warnbg:#fff1d6;--bad:#b3261e}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#14181d;--card:#1c222a;--ink:#e6ebf1;--sub:#9aa7b5;--line:#2f3945;--accent:#8fb2e0;--ok:#6ccf8b;--warn:#f0b35a;--warnbg:#3a2e17;--bad:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 "Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif}
+.wrap{max-width:560px;margin:0 auto;padding:14px}
+h1{font-size:20px;margin:6px 0}
+.banner{background:var(--warnbg);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:14px;margin:8px 0}
+.item{display:flex;gap:12px;align-items:stretch;background:var(--card);border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden}
+.item.done{opacity:.5}
+.chk{flex:0 0 52px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line)}
+.chk input{width:26px;height:26px}
+.go{flex:1;padding:12px 12px 12px 0;cursor:pointer;-webkit-tap-highlight-color:rgba(47,74,109,.15)}
+.no{display:inline-block;min-width:26px;height:26px;border-radius:13px;background:var(--accent);color:#fff;text-align:center;line-height:26px;font-weight:700;font-size:14px;margin-right:6px}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .no{color:#0d1722}}
+.name{font-weight:700}
+.sub{font-size:14px;color:var(--sub)}
+.walk{display:inline-block;font-size:13px;padding:1px 9px;border-radius:10px;background:var(--ok);color:#fff;margin-left:6px}
+.nav{font-size:14px;color:var(--accent);margin-top:4px}
+#msg{display:none;margin:10px 0;padding:10px 12px;border-radius:10px;background:var(--warnbg);color:var(--warn);font-size:14px}
+.empty{color:var(--bad);margin:20px 0}
+.foot{font-size:13px;color:var(--sub);margin:18px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>오늘의 순서표</h1>
+  <div class="banner">⚠ <b>운전 중에는 조작하지 마십시오.</b> 정차 후 확인하십시오. 실제 운행은 네이버 안내와 교통법규를 따르십시오.</div>
+  <div class="banner" id="kakaoBox" style="display:none">카카오톡 안에서 열렸습니다. 길안내가 열리지 않으면 오른쪽 위 메뉴(⋮)에서 <b>다른 브라우저로 열기</b>를 눌러 주세요.</div>
+  <div id="sumLine" class="sub"></div>
+  <div id="list"></div>
+  <div id="msg"></div>
+  <div class="foot">주소를 누르면 네이버지도 길안내가 시작됩니다(네이버지도 앱 필요). 체크 표시는 이 기기에만 저장됩니다.</div>
+</div>
+<script>
+"use strict";
+var $ = function (id) { return document.getElementById(id); };
+function unb64(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "=";
+  var bin = atob(s), bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+var hash = location.hash.slice(1), data = null;
+try { data = unb64(hash); } catch (e) {}
+var UA = navigator.userAgent, isAndroid = /Android/i.test(UA), isIOS = /iPhone|iPad|iPod/i.test(UA);
+if (/KAKAOTALK/i.test(UA)) $("kakaoBox").style.display = "block";
+
+function navLink(s) {
+  var q = "dlat=" + s[1] + "&dlng=" + s[2] + "&dname=" + encodeURIComponent(s[0]) +
+          "&appname=" + encodeURIComponent(location.origin + location.pathname);
+  if (isAndroid) return "intent://navigation?" + q + "#Intent;scheme=nmap;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end";
+  return "nmap://navigation?" + q;
+}
+function go(s) {
+  var left = false, onHide = function () { if (document.hidden) left = true; };
+  document.addEventListener("visibilitychange", onHide);
+  location.href = navLink(s);
+  setTimeout(function () {
+    document.removeEventListener("visibilitychange", onHide);
+    if (!left) {
+      var m = $("msg"); m.style.display = "block";
+      m.textContent = "네이버지도가 열리지 않았습니다. 네이버지도 앱이 설치돼 있는지 확인해 주세요. (좌표 " + s[1] + ", " + s[2] + ")";
+    }
+  }, 1800);
+}
+function load(k) { try { return JSON.parse(localStorage.getItem("sunro_done_" + hash.slice(0, 40)) || "{}")[k]; } catch (e) { return false; } }
+function save(k, v) { try { var key = "sunro_done_" + hash.slice(0, 40), o = JSON.parse(localStorage.getItem(key) || "{}"); o[k] = v; localStorage.setItem(key, JSON.stringify(o)); } catch (e) {} }
+
+if (!data || !data.s || !data.s.length) {
+  $("list").innerHTML = '<div class="empty">순서표 내용이 없습니다. 링크를 끝까지 복사했는지 확인해 주세요.</div>';
+} else {
+  var total = data.t || 0;
+  if (!data.t) { total = data.b || 0; data.s.forEach(function (s) { total += s[5] || 0; }); }
+  $("sumLine").textContent = "오늘 " + data.s.length + "곳 · 총 약 " + total.toFixed(1) + "km (출발·복귀 포함)";
+  data.s.forEach(function (s, i) {
+    var it = document.createElement("div"); it.className = "item";
+    var chk = document.createElement("div"); chk.className = "chk";
+    var cb = document.createElement("input"); cb.type = "checkbox"; cb.setAttribute("aria-label", (i + 1) + "번 완료");
+    cb.checked = !!load(i); if (cb.checked) it.classList.add("done");
+    cb.onchange = function () { it.classList.toggle("done", cb.checked); save(i, cb.checked); };
+    chk.appendChild(cb);
+    var g = document.createElement("div"); g.className = "go";
+    var no = document.createElement("span"); no.className = "no"; no.textContent = i + 1;
+    var nm = document.createElement("span"); nm.className = "name"; nm.textContent = s[0];
+    g.appendChild(no); g.appendChild(nm);
+    if (s[4]) { var w = document.createElement("span"); w.className = "walk"; w.textContent = "도보 가능 (직선 약 " + Math.round(s[4] / 10) * 10 + "m)"; g.appendChild(w); }
+    if (s[3]) { var m = document.createElement("div"); m.className = "sub"; m.textContent = "메모: " + s[3]; g.appendChild(m); }
+    var nv = document.createElement("div"); nv.className = "nav"; nv.textContent = "▶ 눌러서 네이버 길안내";
+    g.appendChild(nv);
+    g.onclick = function () { go(s); };
+    it.appendChild(chk); it.appendChild(g); $("list").appendChild(it);
+  });
+}
+</script>
+</body>
+</html>
