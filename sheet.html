@@ -85,7 +85,9 @@ if (!data || !data.s || !data.s.length) {
 } else {
   var total = data.t || 0;
   if (!data.t) { total = data.b || 0; data.s.forEach(function (s) { total += s[5] || 0; }); }
-  $("sumLine").textContent = "오늘 " + data.s.length + "곳 · 총 약 " + total.toFixed(1) + "km (출발·복귀 포함)";
+  var dl = data.d ? data.d.split("/") : null;
+  if (dl) { document.querySelector("h1").textContent = dl[0] + "일차 순서표 (" + dl[1] + "일 중)"; document.title = dl[0] + "일차 순서표"; }
+  $("sumLine").textContent = (dl ? dl[0] + "일차 " : "오늘 ") + data.s.length + "곳 · 총 약 " + total.toFixed(1) + "km (출발·복귀 포함)";
   data.s.forEach(function (s, i) {
     var it = document.createElement("div"); it.className = "item";
     var chk = document.createElement("div"); chk.className = "chk";

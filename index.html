@@ -38,6 +38,8 @@ ol.res li{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top
 ol.res .no{flex:0 0 28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;text-align:center;line-height:28px;font-weight:700;font-size:14px}
 .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;background:var(--ok);color:#fff;margin-left:6px}
 .tag.w{background:var(--warn)}
+.tag.g{background:#6a4fb3}
+#dayTabs button{padding:6px 12px;margin:2px 4px 2px 0}
 .sum{font-size:18px;font-weight:700}
 .small{font-size:13px;color:var(--sub)}
 .bad{color:var(--bad)}
@@ -47,7 +49,7 @@ canvas{max-width:100%;height:auto;image-rendering:pixelated;background:#fff;bord
 </head>
 <body>
 <div class="wrap">
-  <h1>순로앱 <span class="small">시제품 v0.3 · 실제 주소·도로·지도</span></h1>
+  <h1>순로앱 <span class="small">시제품 v0.4 · 여러 날 나누기</span></h1>
   <div class="note">인천본부 관할(인천·김포·시흥·부천·백령도)의 실제 주소와 도로로 계산합니다. 입력한 주소는 이 기기 밖으로 전송되지 않습니다. 예상 시간은 도로 종류별 평균속도로 계산한 참고값입니다.</div>
 
   <div class="card">
@@ -65,6 +67,19 @@ canvas{max-width:100%;height:auto;image-rendering:pixelated;background:#fff;bord
     <div class="small">한 줄에 한 곳. 엑셀에서 복사해 붙여 넣어도 됩니다. 메모는 주소 뒤에 쉼표(,)로 적습니다. 도로명주소·지번·산 번지 모두 됩니다.</div>
     <textarea id="input" spellcheck="false" placeholder="옥련동 194, 변압기&#10;청능대로 210&#10;동춘동 산 12"></textarea>
     <div class="small">※ 메모 칸에 <b>이름·연락처를 적지 마십시오.</b></div>
+    <label class="f">일정</label>
+    <div class="row">
+      <label><input type="radio" name="mode" id="modeOne" checked> 오늘 하루에 전부</label>
+      <label><input type="radio" name="mode" id="modeMulti"> 여러 날로 나누기</label>
+      <span id="multiBox" hidden><input type="number" id="daysIn" min="2" max="30" style="width:64px;font:inherit;padding:6px" placeholder="일수">일</span>
+    </div>
+    <div class="row" id="radiusRow" hidden>
+      <label>반경 묶기(차로 거리)
+        <select id="radiusSel"><option value="0">끄기</option><option value="500" selected>500m</option><option value="1000">1km</option><option value="c">직접 입력</option></select>
+      </label>
+      <span id="radiusCustom" hidden><input type="number" id="radiusIn" min="50" max="5000" step="50" style="width:84px;font:inherit;padding:6px">m</span>
+      <span class="small" id="targetHint"></span>
+    </div>
     <button id="btnFind">주소 확인</button>
     <div id="prog"></div>
     <ul class="chk" id="chk"></ul>
@@ -73,6 +88,15 @@ canvas{max-width:100%;height:auto;image-rendering:pixelated;background:#fff;bord
 
   <div class="card" id="resCard" hidden>
     <h2>③ 계산 결과</h2>
+    <div class="small" id="planSum"></div>
+    <div class="small bad" id="planMsg"></div>
+    <div id="bigBox" class="note" hidden>
+      <div id="bigText"></div>
+      <label><input type="radio" name="big" id="bigSplit" checked> 연속된 날로 나누기</label>&nbsp;
+      <label><input type="radio" name="big" id="bigKeep"> 그날 전부 돌기</label>
+    </div>
+    <div class="row" id="dayTabs"></div>
+    <div class="row" style="margin:0"><button class="ghost" id="btnResplit" hidden>다시 나누기</button></div>
     <div class="sum" id="sum"></div>
     <div class="small bad" id="skipMsg"></div>
     <ol class="res" id="res"></ol>
@@ -98,6 +122,7 @@ canvas{max-width:100%;height:auto;image-rendering:pixelated;background:#fff;bord
 <script src="core.js"></script>
 <script src="road.js"></script>
 <script src="addr.js"></script>
+<script src="days.js"></script>
 <script src="qr.js"></script>
 <script>
 "use strict";
@@ -143,6 +168,7 @@ function findAll() {
   if (!lines.length) { $("prog").textContent = "방문할 곳을 입력하세요."; return; }
   if (!$("startIn").value.trim()) { $("prog").textContent = "출발지 주소를 입력하세요."; return; }
   $("prog").textContent = "주소를 찾는 중…"; $("btnFind").disabled = true;
+  CALC = null; $("resCard").hidden = true;
   var p = pref();
   var jobs = lines.map(function (ln) {
     var i = ln.indexOf(","), a = (i < 0 ? ln : ln.slice(0, i)).trim(), memo = i < 0 ? "" : ln.slice(i + 1).trim();
@@ -190,6 +216,17 @@ function renderCheck() {
   $("btnCalc").hidden = !(okStart && found.length - bad > 0);
 }
 $("btnFind").onclick = findAll;
+function modeUI(resplit) {
+  var multi = $("modeMulti").checked;
+  $("multiBox").hidden = !multi; $("radiusRow").hidden = !multi;
+  $("radiusCustom").hidden = $("radiusSel").value !== "c";
+  var lines = $("input").value.split(/\r?\n/).filter(function (x) { return x.trim(); }).length, dd = parseInt($("daysIn").value, 10);
+  $("targetHint").textContent = multi && dd > 0 && lines ? "하루 기준 약 " + (lines / dd).toFixed(1) + "곳 (30% 넘게 몰리면 물어봄)" : "";
+  if (resplit !== false && CALC && !$("resCard").hidden) runSplit();
+}
+["modeOne", "modeMulti", "radiusSel"].forEach(function (id) { $(id).addEventListener("change", modeUI); });
+["daysIn", "radiusIn"].forEach(function (id) { $(id).addEventListener("input", modeUI); });
+$("input").addEventListener("input", function () { modeUI(false); });
 
 /* ---------- ③ 순로 계산 ---------- */
 function tilesFor(points, margin) {
@@ -203,6 +240,9 @@ function tilesFor(points, margin) {
 function pickItem(o) { return o.r.items[o.pick >= 0 ? o.pick : 0]; }
 function lineLen(line) { var t = 0; for (var i = 1; i < line.length; i++) t += sunroRoad.hav(line[i - 1][0], line[i - 1][1], line[i][0], line[i][1]); return t; }
 
+/* 계산 상태: 도로망과 시간·거리표는 한 번만 만들고, 나누기 설정만 바꿔 다시 계산 */
+var CALC = null;
+
 function calc() {
   if (!ROADIX) { $("prog").textContent = "도로 자료 목록을 아직 받지 못했습니다."; return; }
   var sites = found.filter(function (f) { return f.r.status !== "none"; }).map(function (f) {
@@ -215,67 +255,134 @@ function calc() {
   var t0 = performance.now();
   Promise.all(tiles.map(function (t) { return getJSON("data/road/" + ROADIX.tiles[t].car.f); }))
   .then(function (carTiles) {
+    $("prog").textContent = "시간표를 만드는 중…";
     var car = new sunroRoad.Network(carTiles, "car");
-    var snaps = all.map(function (p) { return car.snap(p.lat, p.lng); });
-    var M = car.matrix(snaps);
-    var n0 = sites.length;
-    // 출발지에서 갈 수 없는 곳(섬 등)은 따로 빼기
+    var snapsAll = all.map(function (p) { return car.snap(p.lat, p.lng); });
+    var M0 = car.matrix2(snapsAll), n0 = sites.length;
+    // 출발지에서 차로 갈 수 없는 곳(섬 등)은 따로 빼기
     var reach = [], skip = [];
-    for (var i = 1; i <= n0; i++) (isFinite(M[0][i]) && isFinite(M[i][n0 + 1]) ? reach : skip).push(i);
+    for (var i = 1; i <= n0; i++) (isFinite(M0.T[0][i]) && isFinite(M0.T[i][n0 + 1]) ? reach : skip).push(i);
     var idx = [0].concat(reach, [n0 + 1]);
-    var Msub = idx.map(function (a) { return idx.map(function (b) { return M[a][b]; }); });
-    var n = reach.length;
-    var order = n === 0 ? [] : (n <= 9 ? sunroCore.solveExact(Msub, n) : sunroCore.solveHeuristic(Msub, n));
-    var seq = [0].concat(order.map(function (k) { return idx[k]; }), [n0 + 1]);
-    var legs = [];
-    for (var j = 0; j + 1 < seq.length; j++) {
-      var pth = car.path(snaps[seq[j]], snaps[seq[j + 1]]);
-      legs.push({ sec: M[seq[j]][seq[j + 1]], m: lineLen(pth.line), line: pth.line });
-    }
-    var calcMs = Math.round(performance.now() - t0);
-    // 도보 가능: 앞 곳과 직선 100m 이내만 보행로로 다시 잼
-    var stops = order.map(function (k, j) { var s = sites[idx[k] - 1]; return { s: s, leg: legs[j], walk: 0 }; });
-    var needWalk = stops.some(function (st, j) { return j > 0 && sunroRoad.hav(stops[j - 1].s.lat, stops[j - 1].s.lng, st.s.lat, st.s.lng) <= 100; });
-    stops.forEach(function (st, j) { if (j > 0 && sunroRoad.hav(stops[j - 1].s.lat, stops[j - 1].s.lng, st.s.lat, st.s.lng) < 15) st.walk = -1; });
-    var walkP = needWalk ? Promise.all(tiles.map(function (t) { return ROADIX.tiles[t].walk ? getJSON("data/road/" + ROADIX.tiles[t].walk.f) : null; }))
-      .then(function (wt) {
-        var walk = new sunroRoad.Network(wt.filter(Boolean), "walk");
-        stops.forEach(function (st, j) {
-          if (j === 0) return;
-          var a = stops[j - 1].s, b = st.s, st0 = sunroRoad.hav(a.lat, a.lng, b.lat, b.lng);
-          if (st0 > 100) return;
-          if (st0 < 15) { st.walk = -1; return; }          // 같은 위치(같은 땅)
-          var pa = walk.snap(a.lat, a.lng), pb = walk.snap(b.lat, b.lng);
-          var d = pa.off + walk.oneToMany(pa, [pb], 200)[0] + pb.off;
-          if (d <= 100) st.walk = Math.round(d / 10) * 10;
-        });
-      }) : Promise.resolve();
-    return walkP.then(function () { show(stops, legs, skip.map(function (i) { return sites[i - 1]; }), calcMs, tiles.length); drawMap(stops, legs, S0, E0); });
+    var sub = function (X) { return idx.map(function (a) { return idx.map(function (b) { return X[a][b]; }); }); };
+    CALC = { car: car, tiles: tiles, S0: S0, E0: E0, T: sub(M0.T), L: sub(M0.L),
+             sites: reach.map(function (k) { return sites[k - 1]; }), snaps: idx.map(function (k) { return snapsAll[k]; }),
+             skipped: skip.map(function (k) { return sites[k - 1]; }), ms: Math.round(performance.now() - t0), walkNet: null };
+    runSplit();
   }).catch(function (e) { $("prog").textContent = "계산 오류: " + e.message; })
   .then(function () { $("btnCalc").disabled = false; });
 }
 $("btnCalc").onclick = calc;
 
-function show(stops, legs, skipped, ms, nt) {
+function planOpts() {
+  var multi = $("modeMulti").checked, days = Math.max(1, parseInt($("daysIn").value, 10) || 1);
+  var rv = $("radiusSel").value, radius = rv === "c" ? (parseInt($("radiusIn").value, 10) || 0) : +rv;
+  return { days: multi ? days : 1, radius: multi ? radius : 0, big: CALC && CALC.big === "keep" ? "keep" : "split" };
+}
+
+function runSplit() {
+  if (!CALC) return;
+  var n = CALC.sites.length;
+  if (!n) { $("prog").textContent = "계산할 곳이 없습니다."; return; }
+  var r = sunroDays.split(CALC.T, CALC.L, planOpts());
+  CALC.plan = r; CALC.legCache = {};
+  // 묶음 이름 (A, B, C…)
+  var names = {}, li = 0;
+  r.groups.forEach(function (g, gi) { if (g.length > 1) names[gi] = String.fromCharCode(65 + (li++ % 26)); });
+  CALC.groupName = names;
+  // 날짜 탭
+  var tabs = $("dayTabs"); tabs.innerHTML = "";
+  if (r.days.length > 1) r.days.forEach(function (d, i) {
+    var b = document.createElement("button"); b.className = "ghost"; b.textContent = d.day + "일차 " + d.count + "곳";
+    b.onclick = function () { showDay(i); }; tabs.appendChild(b);
+  });
+  // 요약과 알림
+  var totM = r.days.reduce(function (a, d) { return a + d.m; }, 0), totS = r.days.reduce(function (a, d) { return a + d.sec; }, 0);
+  $("planSum").textContent = r.days.length > 1
+    ? r.days.length + "일 · " + n + "곳 · 하루 기준 약 " + r.target.toFixed(1) + "곳 (최대 " + r.cap + "곳까지 자동) · 전체 " + fmtKm(totM)
+    : "";
+  var msgs = [];
+  if (r.requestedDays > r.usedDays) msgs.push("곳 수보다 일수가 많아 " + r.usedDays + "일로 줄였습니다.");
+  r.days.forEach(function (d) {
+    if (d.count > r.cap && !r.big.length) msgs.push(d.day + "일차가 " + d.count + "곳으로 기준보다 많습니다. 일수를 늘려 다시 계산할 수 있습니다.");
+  });
+  $("planMsg").textContent = msgs.join(" ");
+  // 큰 묶음 선택
+  var bb = $("bigBox");
+  if (r.big.length) {
+    bb.hidden = false;
+    $("bigText").textContent = r.big.map(function (b) { return "묶음 " + names[b.group] + ": 반경 안에 " + b.size + "곳이 몰려 하루 기준(" + r.target.toFixed(1) + "곳)의 30%를 넘습니다."; }).join(" ");
+    $("bigSplit").checked = CALC.big !== "keep"; $("bigKeep").checked = CALC.big === "keep";
+  } else bb.hidden = true;
+  $("skipMsg").textContent = CALC.skipped.length ? "출발지에서 차로 갈 수 없는 곳(섬 등) " + CALC.skipped.length + "곳은 빠졌습니다: " + CALC.skipped.map(function (s) { return s.text; }).join(", ") + ". 섬 안 출발지로 따로 계산하세요." : "";
   $("resCard").hidden = false;
+  showDay(0);
+}
+$("bigSplit").onchange = $("bigKeep").onchange = function () { if (CALC) { CALC.big = $("bigKeep").checked ? "keep" : "split"; runSplit(); } };
+$("btnResplit").onclick = function () { if (CALC) runSplit(); };
+
+function legsOf(order) {
+  var seq = [0].concat(order, [CALC.T.length - 1]), legs = [];
+  for (var j = 0; j + 1 < seq.length; j++) {
+    var key = seq[j] + ">" + seq[j + 1], c = CALC.legCache[key];
+    if (!c) {
+      var pth = CALC.car.path(CALC.snaps[seq[j]], CALC.snaps[seq[j + 1]]);
+      c = CALC.legCache[key] = { sec: CALC.T[seq[j]][seq[j + 1]], m: CALC.L[seq[j]][seq[j + 1]], line: pth.line };
+    }
+    legs.push(c);
+  }
+  return legs;
+}
+
+function walkNet() {
+  if (CALC.walkNet) return Promise.resolve(CALC.walkNet);
+  return Promise.all(CALC.tiles.map(function (t) { return ROADIX.tiles[t].walk ? getJSON("data/road/" + ROADIX.tiles[t].walk.f) : null; }))
+    .then(function (wt) { return CALC.walkNet = new sunroRoad.Network(wt.filter(Boolean), "walk"); });
+}
+
+function showDay(di) {
+  var r = CALC.plan, d = r.days[di];
+  Array.prototype.forEach.call($("dayTabs").children, function (b, i) { b.className = i === di ? "" : "ghost"; });
+  var legs = legsOf(d.order);
+  var stops = d.order.map(function (k, j) { return { s: CALC.sites[k - 1], k: k, leg: legs[j], walk: 0 }; });
+  stops.forEach(function (st, j) { if (j > 0 && sunroRoad.hav(stops[j - 1].s.lat, stops[j - 1].s.lng, st.s.lat, st.s.lng) < 15) st.walk = -1; });
+  var needWalk = stops.some(function (st, j) { var h = j > 0 && sunroRoad.hav(stops[j - 1].s.lat, stops[j - 1].s.lng, st.s.lat, st.s.lng); return j > 0 && h >= 15 && h <= 100; });
+  var wp = needWalk ? walkNet().then(function (walk) {
+    stops.forEach(function (st, j) {
+      if (j === 0 || st.walk) return;
+      var a = stops[j - 1].s, b = st.s;
+      if (sunroRoad.hav(a.lat, a.lng, b.lat, b.lng) > 100) return;
+      var pa = walk.snap(a.lat, a.lng), pb = walk.snap(b.lat, b.lng);
+      var dd = pa.off + walk.oneToMany(pa, [pb], 200)[0] + pb.off;
+      if (dd <= 100) st.walk = Math.round(dd / 10) * 10;
+    });
+  }) : Promise.resolve();
+  wp.then(function () {
+    show(stops, legs, d, r.days.length);
+    drawMap(stops, legs, CALC.S0, CALC.E0);
+  });
+}
+
+function show(stops, legs, d, nDays) {
   var totS = legs.reduce(function (a, l) { return a + l.sec; }, 0), totM = legs.reduce(function (a, l) { return a + l.m; }, 0);
   var walkN = stops.filter(function (s) { return s.walk; }).length;
-  $("sum").textContent = "오늘 " + stops.length + "곳 · 총 약 " + fmtKm(totM) + " · 운전 약 " + fmtMin(totS) + (walkN ? " · 도보 가능 " + walkN + "곳" : "");
-  $("skipMsg").textContent = skipped.length ? "출발지에서 차로 갈 수 없는 곳(섬 등) " + skipped.length + "곳은 빠졌습니다: " + skipped.map(function (s) { return s.text; }).join(", ") + ". 섬 안 출발지로 따로 계산하세요." : "";
+  var head = nDays > 1 ? d.day + "일차 · " : "오늘 ";
+  $("sum").textContent = head + stops.length + "곳 · 총 약 " + fmtKm(totM) + " · 운전 약 " + fmtMin(totS) + (walkN ? " · 도보 가능 " + walkN + "곳" : "") +
+    (d.over && nDays > 1 ? " · 묶음 때문에 기준보다 " + d.over + "곳 많음" : "");
   var ol = $("res"); ol.innerHTML = "";
   stops.forEach(function (st, i) {
-    var li = document.createElement("li"), it = st.s.it;
+    var li = document.createElement("li"), it = st.s.it, gi = CALC.plan.clusterOf[st.k];
     li.innerHTML = '<div class="no">' + (i + 1) + "</div><div><b>" + esc(it.road || it.jibun) + "</b>" +
       (st.walk > 0 ? '<span class="tag">도보 가능 (약 ' + st.walk + "m)</span>" : st.walk < 0 ? '<span class="tag">같은 위치</span>' : "") +
+      (gi !== undefined ? '<span class="tag g">묶음 ' + CALC.groupName[gi] + "</span>" : "") +
       (it.approx ? '<span class="tag w">근사 위치</span>' : "") +
       '<div class="small">' + (i === 0 ? "출발지에서 " : "앞 곳에서 ") + fmtKm(st.leg.m) + " · 약 " + fmtMin(st.leg.sec) +
       (st.s.memo ? " · 메모: " + esc(st.s.memo) : "") + (it.road ? " · " + esc(it.jibun) : "") + "</div></div>";
     ol.appendChild(li);
   });
   var back = legs[legs.length - 1];
-  $("backLine").textContent = "복귀까지 " + fmtKm(back.m) + " · 약 " + fmtMin(back.sec) + "  (도로 지도 " + nt + "칸, 계산 " + ms + "ms)";
+  $("backLine").textContent = "복귀까지 " + fmtKm(back.m) + " · 약 " + fmtMin(back.sec) + "  (도로 지도 " + CALC.tiles.length + "칸, 시간표 " + CALC.ms + "ms)";
   $("prog").textContent = "";
-  buildLink(stops, totM);
+  buildLink(stops, totM, nDays > 1 ? d.day + "/" + nDays : "");
   $("qr").hidden = true; $("shareMsg").textContent = "";
 }
 
@@ -351,14 +458,14 @@ function b64url(str) {
   for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-function buildLink(stops, totM) {
+function buildLink(stops, totM, dayLabel) {
   // [표시 이름, 위도, 경도, 메모, 도보m, 구간km, 네이버 검색용 완성 주소]
-  var pack = { v: 2, t: Math.round(totM / 100) / 10, s: stops.map(function (st) {
+  var pack = { v: 2, t: Math.round(totM / 100) / 10, d: dayLabel || "", s: stops.map(function (st) {
     var it = st.s.it;
     return [it.road || it.jibun, +it.lat.toFixed(5), +it.lng.toFixed(5), st.s.memo || "", st.walk > 0 ? st.walk : (st.walk < 0 ? 1 : 0), Math.round(st.leg.m / 100) / 10, it.road || ""];
   }) };
   lastLink = new URL("sheet.html", location.href).href + "#" + b64url(JSON.stringify(pack));
-  $("linkInfo").textContent = "링크 길이 " + lastLink.length + "자 (주소·메모는 링크 안에 담기며, 서버에 저장되지 않습니다)";
+  $("linkInfo").textContent = (dayLabel ? dayLabel.replace("/", "일차 순서표 (") + "일 중) · " : "") + "링크 길이 " + lastLink.length + "자 (주소·메모는 링크 안에 담기며, 서버에 저장되지 않습니다)";
 }
 function showQR() {
   if (!lastLink) return;

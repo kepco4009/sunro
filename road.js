@@ -50,14 +50,14 @@
     });
     arcs.forEach(function (a) { cnt[a[0] + 1]++; });
     for (var i = 0; i < this.N; i++) cnt[i + 1] += cnt[i];
-    var to = new Int32Array(arcs.length), w = new Float64Array(arcs.length),
+    var to = new Int32Array(arcs.length), w = new Float64Array(arcs.length), wl = new Float64Array(arcs.length),
         eid = new Int32Array(arcs.length), rev = new Uint8Array(arcs.length), pos = cnt.slice();
     var self = this;
     arcs.forEach(function (a) {
       var p = pos[a[0]]++;
-      to[p] = a[1]; eid[p] = a[2]; rev[p] = a[3]; w[p] = self.cost(E[a[2]]);
+      to[p] = a[1]; eid[p] = a[2]; rev[p] = a[3]; w[p] = self.cost(E[a[2]]); wl[p] = E[a[2]].len;
     });
-    this.start = cnt; this.to = to; this.w = w; this.eid = eid; this.rev = rev;
+    this.start = cnt; this.to = to; this.w = w; this.wl = wl; this.eid = eid; this.rev = rev;
     // 붙이기용 격자: 각 길 조각(segment)을 지나는 칸에 등록
     var grid = new Map();
     E.forEach(function (e, i) {
@@ -137,38 +137,38 @@
   // 붙인 점에서 출발할 때: 길 양 끝 점까지의 비용
   Network.prototype.leave = function (p) {
     var e = this.edges[p.edge], c = this.cost(e), out = [];
-    out.push([e.v, (1 - p.t) * c]);                              // u→v 방향으로 나감
-    if (this.mode === 'walk' || !e.one) out.push([e.u, p.t * c]); // 반대로 나감 (양방향일 때만)
+    out.push([e.v, (1 - p.t) * c, (1 - p.t) * e.len]);                        // u→v 방향으로 나감
+    if (this.mode === 'walk' || !e.one) out.push([e.u, p.t * c, p.t * e.len]); // 반대로 나감 (양방향일 때만)
     return out;
   };
   // 붙인 점에 도착할 때: 길 양 끝 점에서 들어오는 비용
   Network.prototype.arrive = function (p) {
     var e = this.edges[p.edge], c = this.cost(e), out = [];
-    out.push([e.u, p.t * c]);
-    if (this.mode === 'walk' || !e.one) out.push([e.v, (1 - p.t) * c]);
+    out.push([e.u, p.t * c, p.t * e.len]);
+    if (this.mode === 'walk' || !e.one) out.push([e.v, (1 - p.t) * c, (1 - p.t) * e.len]);
     return out;
   };
 
   /** 한 점에서 여러 점까지 최단 비용. limit: 이보다 큰 비용은 탐색 중단 (도보 100m 등) */
   Network.prototype.oneToMany = function (src, targets, limit, keepPrev) {
-    var N = this.N, dist = new Float64Array(N).fill(Infinity), prev = keepPrev ? new Int32Array(N).fill(-1) : null;
+    var N = this.N, dist = new Float64Array(N).fill(Infinity), dl = new Float64Array(N), prev = keepPrev ? new Int32Array(N).fill(-1) : null;
     var h = new Heap(), self = this;
-    this.leave(src).forEach(function (a) { if (a[1] < dist[a[0]]) { dist[a[0]] = a[1]; h.push(a[1], a[0]); } });
+    this.leave(src).forEach(function (a) { if (a[1] < dist[a[0]]) { dist[a[0]] = a[1]; dl[a[0]] = a[2]; h.push(a[1], a[0]); } });
     // 목표마다 들어오는 끝 점 목록
     var need = new Map(), left = 0;
     targets.forEach(function (p, ti) {
       self.arrive(p).forEach(function (a) {
         var arr = need.get(a[0]); if (!arr) need.set(a[0], arr = []);
-        arr.push([ti, a[1]]); left++;
+        arr.push([ti, a[1], a[2]]); left++;
       });
     });
-    var res = targets.map(function () { return Infinity; });
+    var res = targets.map(function () { return Infinity; }), resL = targets.map(function () { return Infinity; });
     // 출발과 도착이 같은 길 위에 있으면 길을 따라 바로 갈 수 있는지
     targets.forEach(function (p, ti) {
       if (p.edge !== src.edge) return;
       var e = self.edges[p.edge], c = self.cost(e);
-      if (p.t >= src.t) res[ti] = (p.t - src.t) * c;
-      else if (self.mode === 'walk' || !e.one) res[ti] = (src.t - p.t) * c;
+      if (p.t >= src.t) { res[ti] = (p.t - src.t) * c; resL[ti] = (p.t - src.t) * e.len; }
+      else if (self.mode === 'walk' || !e.one) { res[ti] = (src.t - p.t) * c; resL[ti] = (src.t - p.t) * e.len; }
     });
     var done = new Uint8Array(N), lim = limit || Infinity;
     while (h.k.length) {
@@ -178,16 +178,17 @@
       if (du > lim) break;
       var arr = need.get(u);
       if (arr) {
-        arr.forEach(function (x) { if (du + x[1] < res[x[0]]) res[x[0]] = du + x[1]; });
+        arr.forEach(function (x) { if (du + x[1] < res[x[0]]) { res[x[0]] = du + x[1]; resL[x[0]] = dl[u] + x[2]; } });
         left -= arr.length;
         if (left <= 0 && !keepPrev) break;
       }
       for (var p = this.start[u]; p < this.start[u + 1]; p++) {
         var v = this.to[p], nd = du + this.w[p];
-        if (nd < dist[v]) { dist[v] = nd; if (prev) prev[v] = p; h.push(nd, v); }
+        if (nd < dist[v]) { dist[v] = nd; dl[v] = dl[u] + this.wl[p]; if (prev) prev[v] = p; h.push(nd, v); }
       }
     }
     if (keepPrev) { this._dist = dist; this._prev = prev; }
+    this._lastLen = resL;
     return res;
   };
 
@@ -212,6 +213,13 @@
   Network.prototype.matrix = function (pts) {
     var self = this;
     return pts.map(function (p) { return self.oneToMany(p, pts); });
+  };
+
+  /** 비용표와 함께, 가장 빠른 길의 길이(m)표도 */
+  Network.prototype.matrix2 = function (pts) {
+    var self = this, T = [], L = [];
+    pts.forEach(function (p) { T.push(self.oneToMany(p, pts)); L.push(self._lastLen.slice()); });
+    return { T: T, L: L };
   };
 
   var api = { Network: Network, SPEED: SPEED, hav: hav };
