@@ -23,7 +23,8 @@ h1{font-size:20px;margin:6px 0}
 .name{font-weight:700}
 .sub{font-size:14px;color:var(--sub)}
 .walk{display:inline-block;font-size:13px;padding:1px 9px;border-radius:10px;background:var(--ok);color:#fff;margin-left:6px}
-.nav{font-size:14px;color:var(--accent);margin-top:4px}
+.nav{font-size:14px;color:var(--accent);margin-top:4px;display:inline-block}
+.srch{display:inline-block;margin:4px 0 0 12px;font-size:13px;padding:3px 10px;border:1px solid var(--accent);border-radius:14px;color:var(--accent);text-decoration:none}
 #msg{display:none;margin:10px 0;padding:10px 12px;border-radius:10px;background:var(--warnbg);color:var(--warn);font-size:14px}
 .empty{color:var(--bad);margin:20px 0}
 .foot{font-size:13px;color:var(--sub);margin:18px 0}
@@ -37,7 +38,7 @@ h1{font-size:20px;margin:6px 0}
   <div id="sumLine" class="sub"></div>
   <div id="list"></div>
   <div id="msg"></div>
-  <div class="foot">주소를 누르면 네이버지도 길안내가 시작됩니다(네이버지도 앱 필요). 체크 표시는 이 기기에만 저장됩니다.</div>
+  <div class="foot">주소를 누르면 네이버지도 길안내가 시작됩니다(네이버지도 앱 필요). 아파트·공장처럼 넓은 곳은 [주소로 검색]을 누르면 네이버가 입구를 찾아 줍니다. 체크 표시는 이 기기에만 저장됩니다.<br>이 순서는 왕복 2차로 이하 도로에서 좌회전·유턴이 가능하다고 보고 계산했습니다. 실제 길은 네이버 안내를 따르십시오.</div>
 </div>
 <script>
 "use strict";
@@ -58,6 +59,11 @@ function navLink(s) {
           "&appname=" + encodeURIComponent(location.origin + location.pathname);
   if (isAndroid) return "intent://navigation?" + q + "#Intent;scheme=nmap;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end";
   return "nmap://navigation?" + q;
+}
+function searchLink(q) {
+  var p = "query=" + encodeURIComponent(q) + "&appname=" + encodeURIComponent(location.origin + location.pathname);
+  if (isAndroid) return "intent://search?" + p + "#Intent;scheme=nmap;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end";
+  return "nmap://search?" + p;
 }
 function go(s) {
   var left = false, onHide = function () { if (document.hidden) left = true; };
@@ -91,11 +97,17 @@ if (!data || !data.s || !data.s.length) {
     var no = document.createElement("span"); no.className = "no"; no.textContent = i + 1;
     var nm = document.createElement("span"); nm.className = "name"; nm.textContent = s[0];
     g.appendChild(no); g.appendChild(nm);
-    if (s[4]) { var w = document.createElement("span"); w.className = "walk"; w.textContent = "도보 가능 (직선 약 " + Math.round(s[4] / 10) * 10 + "m)"; g.appendChild(w); }
+    if (s[4]) { var w = document.createElement("span"); w.className = "walk"; w.textContent = s[4] === 1 ? "같은 위치" : (data.v >= 2 ? "도보 가능 (약 " + s[4] + "m)" : "도보 가능 (직선 약 " + Math.round(s[4] / 10) * 10 + "m)"); g.appendChild(w); }
     if (s[3]) { var m = document.createElement("div"); m.className = "sub"; m.textContent = "메모: " + s[3]; g.appendChild(m); }
     var nv = document.createElement("div"); nv.className = "nav"; nv.textContent = "▶ 눌러서 네이버 길안내";
     g.appendChild(nv);
     g.onclick = function () { go(s); };
+    if (s[6]) {
+      var sb = document.createElement("a"); sb.className = "srch"; sb.textContent = "주소로 검색";
+      sb.href = searchLink(s[6]);
+      sb.onclick = function (ev) { ev.stopPropagation(); };
+      g.appendChild(sb);
+    }
     it.appendChild(chk); it.appendChild(g); $("list").appendChild(it);
   });
 }
