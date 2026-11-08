@@ -24,6 +24,7 @@ button.ghost{background:transparent;color:var(--accent)}
 button:disabled{opacity:.5;cursor:default}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}
 label.f{display:block;font-size:14px;color:var(--sub);margin:10px 0 4px}
+.btnlike{display:inline-block;padding:8px 14px;border:1px solid var(--accent);border-radius:8px;color:var(--accent);cursor:pointer;font-size:15px}
 .regions{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px}
 .regions label{white-space:nowrap}
 #map{width:100%;border-radius:8px;margin-top:8px;background:#e9ecef}
@@ -45,39 +46,71 @@ ol.res .no{flex:0 0 28px;height:28px;border-radius:50%;background:var(--accent);
 .bad{color:var(--bad)}
 canvas{max-width:100%;height:auto;image-rendering:pixelated;background:#fff;border:1px solid var(--line);border-radius:6px}
 #prog{font-size:14px;color:var(--sub);min-height:20px}
+.tin{font:inherit;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.nin{font:inherit;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:72px}
+ol.res .body{flex:1;min-width:0}
+ol.res .ctl{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+button.mv{padding:2px 10px;margin:0;font-size:13px;background:transparent;color:var(--accent)}
+select.mvday{font-size:13px;padding:3px}
+.arr{display:inline-block;font-weight:700;color:var(--accent);min-width:46px}
+#timeLine{margin:4px 0}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>순로앱 <span class="small">시제품 v0.4 · 여러 날 나누기</span></h1>
+  <h1>순로앱 <span class="small">시제품 v0.6</span></h1>
   <div class="note">인천본부 관할(인천·김포·시흥·부천·백령도)의 실제 주소와 도로로 계산합니다. 입력한 주소는 이 기기 밖으로 전송되지 않습니다. 예상 시간은 도로 종류별 평균속도로 계산한 참고값입니다.</div>
 
   <div class="card">
-    <h2>① 출발·복귀지와 기본 지역</h2>
+    <h2>① 기본 설정</h2>
+    <label class="f" for="deptIn">부서 번호 (넣으면 지사 기본 설정이 자동으로 채워집니다)</label>
+    <div class="row" style="margin-top:0">
+      <input type="text" id="deptIn" inputmode="numeric" autocomplete="off" placeholder="예: 14009" style="max-width:160px">
+      <button class="ghost" id="btnDeptReset" hidden>부서 기본값으로 되돌리기</button>
+      <span class="small" id="deptMsg"></span>
+    </div>
     <label class="f" for="startIn">출발지 주소</label>
     <input type="text" id="startIn" placeholder="예: 연수구 ○○로 12 또는 옥련동 123">
     <div class="row"><label><input type="checkbox" id="sameEnd" checked> 복귀지는 출발지와 같게</label></div>
     <div id="endBox" hidden><label class="f" for="endIn">복귀지 주소</label><input type="text" id="endIn"></div>
+    <div class="row">
+      <label>출발 시각 <input type="time" id="departIn" value="09:00" class="tin"></label>
+      <label>개소당 작업시간 <input type="number" id="workIn" value="15" min="0" max="240" class="nin">분</label>
+    </div>
     <label class="f">기본 지역 (구 이름 없이 적었을 때 먼저 찾는 곳, 여러 개 선택 가능)</label>
     <div id="regionBox" class="regions"></div>
   </div>
 
   <div class="card">
     <h2>② 방문할 곳</h2>
-    <div class="small">한 줄에 한 곳. 엑셀에서 복사해 붙여 넣어도 됩니다. 메모는 주소 뒤에 쉼표(,)로 적습니다. 도로명주소·지번·산 번지 모두 됩니다.</div>
+    <div class="small">한 줄에 한 곳. 메모는 주소 뒤에 쉼표(,)로 적습니다. 도로명주소·지번·산 번지 모두 됩니다.</div>
+    <div class="row">
+      <label class="btnlike">📄 파일에서 불러오기<input type="file" id="fileIn" accept=".txt,.csv,.xlsx,.xls" hidden></label>
+      <span class="small">.txt · .csv · 엑셀(.xlsx)</span>
+    </div>
+    <div id="colBox" class="note" hidden>
+      <div id="colInfo"></div>
+      <div class="row">
+        <label>주소 칸 <select id="colAddr"></select></label>
+        <label>메모 칸 <select id="colMemo"></select></label>
+        <label><input type="checkbox" id="colHead"> 첫 줄은 제목</label>
+      </div>
+      <div class="small" id="colPreview"></div>
+      <button id="btnCols">목록에 넣기</button> <button class="ghost" id="btnColsCancel">닫기</button>
+    </div>
     <textarea id="input" spellcheck="false" placeholder="옥련동 194, 변압기&#10;청능대로 210&#10;동춘동 산 12"></textarea>
-    <div class="small">※ 메모 칸에 <b>이름·연락처를 적지 마십시오.</b></div>
+    <div class="small">※ 메모 칸에 <b>연락처를 적지 마십시오.</b> 고객명을 적었다면 휴대폰으로 보낼 때 메모를 빼세요(④).</div>
     <label class="f">일정</label>
     <div class="row">
       <label><input type="radio" name="mode" id="modeOne" checked> 오늘 하루에 전부</label>
       <label><input type="radio" name="mode" id="modeMulti"> 여러 날로 나누기</label>
-      <span id="multiBox" hidden><input type="number" id="daysIn" min="2" max="30" style="width:64px;font:inherit;padding:6px" placeholder="일수">일</span>
+      <span id="multiBox" hidden><input type="number" id="daysIn" min="2" max="30" class="nin" placeholder="일수">일</span>
     </div>
     <div class="row" id="radiusRow" hidden>
       <label>반경 묶기(차로 거리)
         <select id="radiusSel"><option value="0">끄기</option><option value="500" selected>500m</option><option value="1000">1km</option><option value="c">직접 입력</option></select>
       </label>
-      <span id="radiusCustom" hidden><input type="number" id="radiusIn" min="50" max="5000" step="50" style="width:84px;font:inherit;padding:6px">m</span>
+      <span id="radiusCustom" hidden><input type="number" id="radiusIn" min="50" max="5000" step="50" class="nin" style="width:84px">m</span>
       <span class="small" id="targetHint"></span>
     </div>
     <button id="btnFind">주소 확인</button>
@@ -95,10 +128,14 @@ canvas{max-width:100%;height:auto;image-rendering:pixelated;background:#fff;bord
       <label><input type="radio" name="big" id="bigSplit" checked> 연속된 날로 나누기</label>&nbsp;
       <label><input type="radio" name="big" id="bigKeep"> 그날 전부 돌기</label>
     </div>
-    <div class="row" id="dayTabs"></div>
-    <div class="row" style="margin:0"><button class="ghost" id="btnResplit" hidden>다시 나누기</button></div>
-    <div class="sum" id="sum"></div>
     <div class="small bad" id="skipMsg"></div>
+    <div class="row" id="dayTabs"></div>
+    <div class="sum" id="sum"></div>
+    <div class="small" id="timeLine"></div>
+    <div class="row" style="margin:4px 0">
+      <button class="ghost" id="btnAuto" hidden>이 날 순서 다시 자동으로</button>
+      <span class="small" id="editMsg">▲▼로 순서를 바꾸거나, 다른 날로 옮길 수 있습니다.</span>
+    </div>
     <ol class="res" id="res"></ol>
     <div class="small" id="backLine"></div>
     <div class="mapwrap"><canvas id="map" hidden></canvas></div>
@@ -110,34 +147,71 @@ canvas{max-width:100%;height:auto;image-rendering:pixelated;background:#fff;bord
       <button id="btnSms">문자</button>
       <button id="btnCopy" class="ghost">링크 복사</button>
     </div>
+    <div class="row" style="margin:2px 0"><label class="small"><input type="checkbox" id="sendMemo" checked> 메모도 휴대폰으로 보내기 (고객명을 적었다면 끄세요)</label></div>
     <div id="shareMsg" class="small"></div>
     <canvas id="qr" hidden></canvas>
     <div class="small" id="linkInfo"></div>
     <p class="small">이 순서는 왕복 2차로 이하 도로에서 좌회전·유턴이 가능하다고 보고 계산했습니다. 실제 길은 네이버 안내를 따르십시오.</p>
   </div>
 
-  <div class="small" style="margin:20px 0">지도 자료 © OpenStreetMap 기여자(ODbL) · 주소 자료: 행정안전부 도로명주소 · 필지 자료: 국토교통부 연속지적도형정보(CC BY) · QR 생성: Kazuhiko Arase(MIT)</div>
+  <div class="small" style="margin:20px 0"><span id="counter"></span>지도 자료 © OpenStreetMap 기여자(ODbL) · 주소 자료: 행정안전부 도로명주소 · 필지 자료: 국토교통부 연속지적도형정보(CC BY) · QR 생성: Kazuhiko Arase(MIT) · <a href="admin.html">관리자</a></div>
 </div>
 
+<script src="config.js"></script>
 <script src="core.js"></script>
 <script src="road.js"></script>
 <script src="addr.js"></script>
 <script src="days.js"></script>
+<script src="filein.js"></script>
+<script src="dept.js"></script>
 <script src="qr.js"></script>
 <script>
 "use strict";
 var $ = function (id) { return document.getElementById(id); };
-var DB = null, ROADIX = null, found = [], startPt = null, endPt = null, lastLink = "";
+var CFG = window.SUNRO_CONFIG || {};
+var DB = null, ROADIX = null, DEPTBOX = null, DEPT = null, found = [], startPt = null, endPt = null, lastLink = "";
 var KEY = "sunro_v02";
-function save() { try { localStorage.setItem(KEY, JSON.stringify({ start: $("startIn").value, end: $("endIn").value, same: $("sameEnd").checked, regions: pref() })); } catch (e) {} }
-function restore() { try { var s = JSON.parse(localStorage.getItem(KEY) || "null"); if (!s) return; $("startIn").value = s.start || ""; $("endIn").value = s.end || ""; $("sameEnd").checked = s.same !== false; $("endBox").hidden = $("sameEnd").checked;
-  if (s.regions) Array.prototype.forEach.call(document.querySelectorAll("#regionBox input"), function (c) { c.checked = s.regions.indexOf(c.value) >= 0; }); } catch (e) {} }
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify({ start: $("startIn").value, end: $("endIn").value, same: $("sameEnd").checked, regions: pref(),
+      depart: $("departIn").value, work: $("workIn").value, dept: sunroDept.clean($("deptIn").value) }));
+  } catch (e) {}
+}
+function stored() { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; } }
+function setRegions(list) { Array.prototype.forEach.call(document.querySelectorAll("#regionBox input"), function (c) { c.checked = list.indexOf(c.value) >= 0; }); }
+function restore() {
+  var s = stored(); if (!s) return;
+  $("startIn").value = s.start || ""; $("endIn").value = s.end || ""; $("sameEnd").checked = s.same !== false; $("endBox").hidden = $("sameEnd").checked;
+  if (s.regions) setRegions(s.regions);
+  if (s.depart) $("departIn").value = s.depart;
+  if (s.work !== undefined && s.work !== "") $("workIn").value = s.work;
+  if (s.dept) $("deptIn").value = s.dept;
+}
 function getJSON(p) { return fetch(p).then(function (r) { if (!r.ok) throw new Error(p + " (" + r.status + ")"); return r.json(); }); }
 function fmtKm(m) { return (m / 1000).toFixed(1) + "km"; }
 function fmtMin(s) { return Math.max(1, Math.round(s / 60)) + "분"; }
+function fmtDur(s) { var m = Math.round(s / 60), h = Math.floor(m / 60); return h ? h + "시간 " + (m % 60) + "분" : m + "분"; }
+function hm(s) { var m = Math.round(s / 60), h = Math.floor(m / 60) % 24; return (h < 10 ? "0" : "") + h + ":" + ((m % 60) < 10 ? "0" : "") + (m % 60); }
 function esc(t) { var d = document.createElement("div"); d.textContent = t == null ? "" : t; return d.innerHTML; }
 function pref() { return Array.prototype.filter.call(document.querySelectorAll("#regionBox input"), function (c) { return c.checked; }).map(function (c) { return c.value; }); }
+function departSec() { var p = ($("departIn").value || "09:00").split(":"); return ((+p[0] || 0) * 60 + (+p[1] || 0)) * 60; }
+function workSec() { return Math.max(0, Math.min(240, parseFloat($("workIn").value) || 0)) * 60; }
 
+/* ---------- 사용 횟수(GoatCounter) : config.js에 코드가 있을 때만 ---------- */
+function ping(path) {
+  if (!CFG.goatcounter) return;
+  try { new Image().src = "https://" + CFG.goatcounter + ".goatcounter.com/count?p=" + encodeURIComponent("/" + path) + "&rnd=" + Date.now(); } catch (e) {}
+}
+function showCounter() {
+  if (!CFG.goatcounter || CFG.counterShow !== "전체") return;
+  fetch("https://" + CFG.goatcounter + ".goatcounter.com/counter/" + encodeURIComponent("/calc") + ".json")
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) { if (j && j.count) $("counter").textContent = "지금까지 순로 계산 " + j.count + "회 · "; })
+    .catch(function () {});
+}
+showCounter();
+
+/* ---------- 시작: 주소 목록 → 저장값 → 부서 설정 ---------- */
 getJSON("data/addr/index.json").then(function (ix) {
   DB = new sunroAddr.AddrDB(ix, function (fn) { return getJSON("data/addr/" + fn); });
   var box = $("regionBox");
@@ -149,11 +223,48 @@ getJSON("data/addr/index.json").then(function (ix) {
     box.appendChild(lb);
   });
   restore();
+  return getJSON("dept.json").then(function (b) { DEPTBOX = b; }).catch(function () { DEPTBOX = null; });
+}).then(function () {
+  var c = sunroDept.clean($("deptIn").value);
+  if (c) tryDept(c, false);
 }).catch(function (e) { $("prog").textContent = "주소 자료를 받지 못했습니다: " + e.message; });
 getJSON("data/road/index.json").then(function (ix) { ROADIX = ix; }).catch(function (e) { $("prog").textContent = "도로 자료 목록을 받지 못했습니다: " + e.message; });
 
 $("sameEnd").onchange = function () { $("endBox").hidden = $("sameEnd").checked; save(); };
 ["startIn", "endIn"].forEach(function (id) { $(id).addEventListener("change", save); });
+["departIn", "workIn"].forEach(function (id) {
+  $(id).addEventListener("change", function () { save(); if (VIEWS && !$("resCard").hidden) showView(CUR); });
+});
+
+/* ---------- ① 부서 번호 ---------- */
+var deptTimer = null, deptApplied = "";
+function applyDept(s) {
+  $("startIn").value = s.start || "";
+  $("endIn").value = s.end || "";
+  $("sameEnd").checked = !s.end; $("endBox").hidden = !s.end;
+  if (s.regions) setRegions(s.regions);
+  $("departIn").value = s.depart || "09:00";
+  $("workIn").value = s.work != null ? s.work : 15;
+  save();
+}
+function tryDept(code, apply) {
+  if (!DEPTBOX) { $("deptMsg").textContent = "부서 설정 파일이 아직 없습니다."; return Promise.resolve(); }
+  return sunroDept.unlock(DEPTBOX, code).then(function (s) {
+    if (sunroDept.clean($("deptIn").value) !== code) return;      // 그 사이 번호가 바뀜
+    DEPT = s; $("btnDeptReset").hidden = !s;
+    if (!s) { deptApplied = ""; $("deptMsg").className = "small bad"; $("deptMsg").textContent = code.length >= 3 ? "등록되지 않은 번호입니다." : ""; return; }
+    $("deptMsg").className = "small";
+    if (apply) { applyDept(s); deptApplied = code; $("deptMsg").textContent = "✔ " + s.name + " 기본 설정을 채웠습니다."; }
+    else { deptApplied = code; $("deptMsg").textContent = "✔ " + s.name; }
+  });
+}
+$("deptIn").addEventListener("input", function () {
+  clearTimeout(deptTimer);
+  var code = sunroDept.clean($("deptIn").value);
+  if (code.length < 3) { $("deptMsg").textContent = ""; $("btnDeptReset").hidden = true; DEPT = null; save(); return; }
+  deptTimer = setTimeout(function () { save(); if (code !== deptApplied) tryDept(code, true); }, 500);
+});
+$("btnDeptReset").onclick = function () { if (DEPT) { applyDept(DEPT); $("deptMsg").textContent = "✔ " + DEPT.name + " 기본 설정으로 되돌렸습니다."; } };
 
 /* ---------- ② 주소 확인 ---------- */
 function describe(it) {
@@ -168,7 +279,7 @@ function findAll() {
   if (!lines.length) { $("prog").textContent = "방문할 곳을 입력하세요."; return; }
   if (!$("startIn").value.trim()) { $("prog").textContent = "출발지 주소를 입력하세요."; return; }
   $("prog").textContent = "주소를 찾는 중…"; $("btnFind").disabled = true;
-  CALC = null; $("resCard").hidden = true;
+  CALC = null; VIEWS = null; $("resCard").hidden = true;
   var p = pref();
   var jobs = lines.map(function (ln) {
     var i = ln.indexOf(","), a = (i < 0 ? ln : ln.slice(0, i)).trim(), memo = i < 0 ? "" : ln.slice(i + 1).trim();
@@ -184,7 +295,7 @@ function findAll() {
 }
 function renderCheck() {
   var ul = $("chk"); ul.innerHTML = "";
-  var addRow = function (label, obj, isEnd) {
+  var addRow = function (label, obj) {
     var li = document.createElement("li"), r = obj.r || obj, st, cls;
     if (r.status === "none") { cls = "none"; st = "못 찾음"; }
     else if (r.status === "multi") { cls = "multi"; st = "후보 " + r.items.length + "개"; }
@@ -216,6 +327,64 @@ function renderCheck() {
   $("btnCalc").hidden = !(okStart && found.length - bad > 0);
 }
 $("btnFind").onclick = findAll;
+$("sendMemo").onchange = function () { if (LAST) { buildLink.apply(null, LAST); $("qr").hidden = true; $("shareMsg").textContent = "메모 포함 여부를 바꿨습니다. QR·링크를 다시 보내 주세요."; } };
+
+/* ---------- 파일에서 불러오기 ---------- */
+var TABLE = null;
+function cellText(v) { return String(v == null ? "" : v).replace(/\s*\n\s*/g, " ").trim(); }
+function colName(i) { var h = TABLE && TABLE.head[i]; return String.fromCharCode(65 + i) + "열" + (h && $("colHead").checked ? " (" + h + ")" : ""); }
+function fillCols() {
+  var w = Math.max.apply(null, TABLE.rows.map(function (r) { return r.length; }));
+  ["colAddr", "colMemo"].forEach(function (id) {
+    var sel = $(id), keep = sel.value; sel.innerHTML = "";
+    if (id === "colMemo") { var o0 = document.createElement("option"); o0.value = "-1"; o0.textContent = "없음"; sel.appendChild(o0); }
+    for (var i = 0; i < w; i++) { var o = document.createElement("option"); o.value = i; o.textContent = colName(i); sel.appendChild(o); }
+    if (keep !== "") sel.value = keep;
+  });
+}
+function colLines() {
+  var a = +$("colAddr").value, m = +$("colMemo").value, rows = TABLE.rows.slice($("colHead").checked ? 1 : 0);
+  return rows.map(function (r) {
+    var ad = cellText(r[a]); if (!ad) return null;
+    var me = m >= 0 ? cellText(r[m]) : "";
+    return ad.replace(/,/g, " ") + (me ? ", " + me : "");
+  }).filter(Boolean);
+}
+function previewCols() {
+  var ls = colLines();
+  $("colPreview").textContent = "미리 보기 (" + ls.length + "곳): " + ls.slice(0, 3).join(" / ") + (ls.length > 3 ? " …" : "");
+}
+$("fileIn").onchange = function () {
+  var f = this.files[0]; if (!f) return;
+  var fr = new FileReader();
+  fr.onload = function () {
+    sunroFile.readFile(f.name, fr.result).then(function (r) {
+      if (r.kind === "lines") {
+        $("input").value = r.lines.join("\n"); $("colBox").hidden = true;
+        $("prog").textContent = f.name + "에서 " + r.lines.length + "곳을 불러왔습니다. [주소 확인]을 누르세요.";
+        modeUI(false);
+      } else {
+        var g = sunroFile.guessColumns(r.rows);
+        TABLE = { rows: r.rows, head: g.head };
+        $("colHead").checked = g.hasHead;
+        $("colAddr").value = ""; $("colMemo").value = "";
+        fillCols();
+        $("colAddr").value = g.addr >= 0 ? g.addr : 0; $("colMemo").value = g.memo;
+        $("colInfo").textContent = f.name + ": " + r.rows.length + "줄. 주소와 메모가 든 칸을 확인하세요." + (g.hasHead ? "" : " (제목 줄이 없어 보여 주소 같은 칸을 골랐습니다)");
+        $("colBox").hidden = false; previewCols();
+      }
+    }).catch(function (e) { $("prog").textContent = "파일을 읽지 못했습니다: " + e.message; });
+  };
+  fr.readAsArrayBuffer(f);
+  this.value = "";
+};
+["colAddr", "colMemo"].forEach(function (id) { $(id).onchange = previewCols; });
+$("colHead").onchange = function () { fillCols(); previewCols(); };
+$("btnCols").onclick = function () {
+  var ls = colLines(); $("input").value = ls.join("\n"); $("colBox").hidden = true;
+  $("prog").textContent = ls.length + "곳을 목록에 넣었습니다. [주소 확인]을 누르세요."; modeUI(false);
+};
+$("btnColsCancel").onclick = function () { $("colBox").hidden = true; };
 function modeUI(resplit) {
   var multi = $("modeMulti").checked;
   $("multiBox").hidden = !multi; $("radiusRow").hidden = !multi;
@@ -237,11 +406,23 @@ function tilesFor(points, margin) {
   for (var a = s; a <= n; a++) for (var b = w; b <= e; b++) if (ROADIX.tiles[a + "_" + b]) out.push(a + "_" + b);
   return out;
 }
+/* 멀리 떨어진 점 무리(예: 백령도)는 따로 묶어, 사이 바다 구역 지도를 받지 않게 함 */
+function tilesForAll(points) {
+  var groups = [], G = 0.3;
+  points.forEach(function (p) {
+    var hit = groups.filter(function (g) { return p.lat >= g.s - G && p.lat <= g.n + G && p.lng >= g.w - G && p.lng <= g.e + G; });
+    var g = { s: p.lat, n: p.lat, w: p.lng, e: p.lng, pts: [p] };
+    hit.forEach(function (h) { g.s = Math.min(g.s, h.s); g.n = Math.max(g.n, h.n); g.w = Math.min(g.w, h.w); g.e = Math.max(g.e, h.e); g.pts = g.pts.concat(h.pts); groups.splice(groups.indexOf(h), 1); });
+    groups.push(g);
+  });
+  var seen = {}, out = [];
+  groups.forEach(function (g) { tilesFor(g.pts, 0.05).forEach(function (t) { if (!seen[t]) { seen[t] = 1; out.push(t); } }); });
+  return out;
+}
 function pickItem(o) { return o.r.items[o.pick >= 0 ? o.pick : 0]; }
-function lineLen(line) { var t = 0; for (var i = 1; i < line.length; i++) t += sunroRoad.hav(line[i - 1][0], line[i - 1][1], line[i][0], line[i][1]); return t; }
 
-/* 계산 상태: 도로망과 시간·거리표는 한 번만 만들고, 나누기 설정만 바꿔 다시 계산 */
-var CALC = null;
+/* CALC: 도로망·시간표(한 번만 계산) / VIEWS: 화면 탭(날짜별·섬별), 각 탭은 base(시간표)와 order(순서)를 가짐 */
+var CALC = null, VIEWS = null, CUR = 0, NOTE = "";
 
 function calc() {
   if (!ROADIX) { $("prog").textContent = "도로 자료 목록을 아직 받지 못했습니다."; return; }
@@ -250,23 +431,37 @@ function calc() {
   });
   var S0 = pickItem({ r: startPt, pick: 0 }), E0 = pickItem({ r: endPt, pick: 0 });
   var all = [S0].concat(sites.map(function (s) { return s.it; }), [E0]);
-  var tiles = tilesFor(all, 0.05);
+  var tiles = tilesForAll(all);
   $("prog").textContent = "도로 지도 " + tiles.length + "칸을 받는 중…"; $("btnCalc").disabled = true;
   var t0 = performance.now();
   Promise.all(tiles.map(function (t) { return getJSON("data/road/" + ROADIX.tiles[t].car.f); }))
   .then(function (carTiles) {
     $("prog").textContent = "시간표를 만드는 중…";
     var car = new sunroRoad.Network(carTiles, "car");
-    var snapsAll = all.map(function (p) { return car.snap(p.lat, p.lng); });
+    var sS = car.snap(S0.lat, S0.lng), sE = car.snap(E0.lat, E0.lng);
+    if (!sS || !sE) throw new Error("출발·복귀지 근처에 도로 자료가 없습니다");
+    var nodata = [];
+    sites = sites.filter(function (st) { st.snap = car.snap(st.lat, st.lng); if (!st.snap) nodata.push(st); return !!st.snap; });
+    var snapsAll = [sS].concat(sites.map(function (st) { return st.snap; }), [sE]);
     var M0 = car.matrix2(snapsAll), n0 = sites.length;
-    // 출발지에서 차로 갈 수 없는 곳(섬 등)은 따로 빼기
+    var ok = function (a, b) { return isFinite(M0.T[a][b]) && isFinite(M0.T[b][a]); };
     var reach = [], skip = [];
     for (var i = 1; i <= n0; i++) (isFinite(M0.T[0][i]) && isFinite(M0.T[i][n0 + 1]) ? reach : skip).push(i);
-    var idx = [0].concat(reach, [n0 + 1]);
-    var sub = function (X) { return idx.map(function (a) { return idx.map(function (b) { return X[a][b]; }); }); };
-    CALC = { car: car, tiles: tiles, S0: S0, E0: E0, T: sub(M0.T), L: sub(M0.L),
-             sites: reach.map(function (k) { return sites[k - 1]; }), snaps: idx.map(function (k) { return snapsAll[k]; }),
-             skipped: skip.map(function (k) { return sites[k - 1]; }), ms: Math.round(performance.now() - t0), walkNet: null };
+    var mk = function (idx, sitesIdx, S, E) {
+      var sub = function (X) { return idx.map(function (a) { return idx.map(function (b) { return X[a][b]; }); }); };
+      return { T: sub(M0.T), L: sub(M0.L), snaps: idx.map(function (k) { return snapsAll[k]; }),
+               sites: sitesIdx.map(function (k) { return sites[k - 1]; }), S0: S, E0: E, legCache: {} };
+    };
+    // 섬: 서로 차로 갈 수 있는 곳끼리 묶고, 첫 곳을 출발·복귀로 가정
+    var isl = [];
+    skip.forEach(function (k) {
+      var g = isl.filter(function (g) { return ok(g[0], k); })[0];
+      if (g) g.push(k); else isl.push([k]);
+    });
+    CALC = { car: car, tiles: tiles, ms: Math.round(performance.now() - t0), walkNet: null, nodata: nodata,
+             main: mk([0].concat(reach, [n0 + 1]), reach, S0, E0),
+             islands: isl.map(function (g) { var f = sites[g[0] - 1]; return mk([g[0]].concat(g, [g[0]]), g, f.it, f.it); }) };
+    ping("calc");
     runSplit();
   }).catch(function (e) { $("prog").textContent = "계산 오류: " + e.message; })
   .then(function () { $("btnCalc").disabled = false; });
@@ -281,52 +476,75 @@ function planOpts() {
 
 function runSplit() {
   if (!CALC) return;
-  var n = CALC.sites.length;
-  if (!n) { $("prog").textContent = "계산할 곳이 없습니다."; return; }
-  var r = sunroDays.split(CALC.T, CALC.L, planOpts());
-  CALC.plan = r; CALC.legCache = {};
-  // 묶음 이름 (A, B, C…)
-  var names = {}, li = 0;
-  r.groups.forEach(function (g, gi) { if (g.length > 1) names[gi] = String.fromCharCode(65 + (li++ % 26)); });
-  CALC.groupName = names;
-  // 날짜 탭
-  var tabs = $("dayTabs"); tabs.innerHTML = "";
-  if (r.days.length > 1) r.days.forEach(function (d, i) {
-    var b = document.createElement("button"); b.className = "ghost"; b.textContent = d.day + "일차 " + d.count + "곳";
-    b.onclick = function () { showDay(i); }; tabs.appendChild(b);
+  var M = CALC.main, n = M.sites.length;
+  VIEWS = [];
+  var r = null, names = {};
+  if (n) {
+    r = sunroDays.split(M.T, M.L, planOpts());
+    var li = 0;
+    r.groups.forEach(function (g, gi) { if (g.length > 1) names[gi] = String.fromCharCode(65 + (li++ % 26)); });
+    r.days.forEach(function (d) {
+      VIEWS.push({ kind: "day", label: r.days.length > 1 ? d.day + "일차" : "오늘", day: d.day, base: M, order: d.order.slice(), edited: false });
+    });
+  }
+  CALC.plan = r; CALC.groupName = names;
+  CALC.islands.forEach(function (b, i) {
+    var ids = b.sites.map(function (s, k) { return k + 1; });
+    VIEWS.push({ kind: "island", label: "섬" + (CALC.islands.length > 1 ? " " + (i + 1) : ""), base: b, order: sunroDays.solveOrder(b.T, ids), edited: false });
   });
+  if (!VIEWS.length) { $("prog").textContent = "계산할 곳이 없습니다."; return; }
+  var nDays = VIEWS.filter(function (v) { return v.kind === "day"; }).length;
+  VIEWS.forEach(function (v) { v.nDays = nDays; });
   // 요약과 알림
-  var totM = r.days.reduce(function (a, d) { return a + d.m; }, 0), totS = r.days.reduce(function (a, d) { return a + d.sec; }, 0);
-  $("planSum").textContent = r.days.length > 1
-    ? r.days.length + "일 · " + n + "곳 · 하루 기준 약 " + r.target.toFixed(1) + "곳 (최대 " + r.cap + "곳까지 자동) · 전체 " + fmtKm(totM)
-    : "";
   var msgs = [];
-  if (r.requestedDays > r.usedDays) msgs.push("곳 수보다 일수가 많아 " + r.usedDays + "일로 줄였습니다.");
-  r.days.forEach(function (d) {
-    if (d.count > r.cap && !r.big.length) msgs.push(d.day + "일차가 " + d.count + "곳으로 기준보다 많습니다. 일수를 늘려 다시 계산할 수 있습니다.");
-  });
+  if (r) {
+    var totM = r.days.reduce(function (a, d) { return a + d.m; }, 0);
+    $("planSum").textContent = r.days.length > 1
+      ? r.days.length + "일 · " + n + "곳 · 하루 기준 약 " + r.target.toFixed(1) + "곳 (최대 " + r.cap + "곳까지 자동) · 전체 " + fmtKm(totM)
+      : "";
+    if (r.requestedDays > r.usedDays) msgs.push("곳 수보다 일수가 많아 " + r.usedDays + "일로 줄였습니다.");
+    r.days.forEach(function (d) {
+      if (d.count > r.cap && !r.big.length) msgs.push(d.day + "일차가 " + d.count + "곳으로 기준보다 많습니다. 일수를 늘리거나 [다른 날로]로 옮기세요.");
+    });
+  } else $("planSum").textContent = "";
   $("planMsg").textContent = msgs.join(" ");
-  // 큰 묶음 선택
   var bb = $("bigBox");
-  if (r.big.length) {
+  if (r && r.big.length) {
     bb.hidden = false;
     $("bigText").textContent = r.big.map(function (b) { return "묶음 " + names[b.group] + ": 반경 안에 " + b.size + "곳이 몰려 하루 기준(" + r.target.toFixed(1) + "곳)의 30%를 넘습니다."; }).join(" ");
     $("bigSplit").checked = CALC.big !== "keep"; $("bigKeep").checked = CALC.big === "keep";
   } else bb.hidden = true;
-  $("skipMsg").textContent = CALC.skipped.length ? "출발지에서 차로 갈 수 없는 곳(섬 등) " + CALC.skipped.length + "곳은 빠졌습니다: " + CALC.skipped.map(function (s) { return s.text; }).join(", ") + ". 섬 안 출발지로 따로 계산하세요." : "";
+  $("skipMsg").textContent = CALC.islands.length
+    ? "출발지에서 차로 갈 수 없는 곳(섬 등) " + CALC.islands.reduce(function (a, b) { return a + b.sites.length; }, 0) + "곳은 [섬] 탭에 따로 짰습니다. 섬 안 첫 곳에서 시작한다고 보고 계산했습니다."
+    : "";
+  if (CALC.nodata.length) $("skipMsg").textContent += " 도로 자료 밖이라 뺀 곳 " + CALC.nodata.length + "곳: " + CALC.nodata.map(function (s) { return s.text; }).join(", ");
   $("resCard").hidden = false;
-  showDay(0);
+  showView(0);
 }
 $("bigSplit").onchange = $("bigKeep").onchange = function () { if (CALC) { CALC.big = $("bigKeep").checked ? "keep" : "split"; runSplit(); } };
-$("btnResplit").onclick = function () { if (CALC) runSplit(); };
 
-function legsOf(order) {
-  var seq = [0].concat(order, [CALC.T.length - 1]), legs = [];
+function renderTabs() {
+  // 단추를 새로 만들지 않고 글자만 바꿈 (입력칸에서 손을 뗄 때 다시 그려져 누른 탭이 사라지는 일 방지)
+  var tabs = $("dayTabs"), n = VIEWS.length < 2 ? 0 : VIEWS.length;
+  while (tabs.children.length > n) tabs.removeChild(tabs.lastChild);
+  while (tabs.children.length < n) {
+    var b = document.createElement("button"); b.setAttribute("data-i", tabs.children.length);
+    b.onclick = function () { showView(+this.getAttribute("data-i")); }; tabs.appendChild(b);
+  }
+  VIEWS.forEach(function (v, i) {
+    if (!n) return;
+    var b = tabs.children[i]; b.className = i === CUR ? "" : "ghost";
+    b.textContent = v.label + " " + v.order.length + "곳" + (v.edited ? " ✎" : "");
+  });
+}
+
+function legsOf(order, base) {
+  var seq = [0].concat(order, [base.T.length - 1]), legs = [];
   for (var j = 0; j + 1 < seq.length; j++) {
-    var key = seq[j] + ">" + seq[j + 1], c = CALC.legCache[key];
+    var key = seq[j] + ">" + seq[j + 1], c = base.legCache[key];
     if (!c) {
-      var pth = CALC.car.path(CALC.snaps[seq[j]], CALC.snaps[seq[j + 1]]);
-      c = CALC.legCache[key] = { sec: CALC.T[seq[j]][seq[j + 1]], m: CALC.L[seq[j]][seq[j + 1]], line: pth.line };
+      var pth = seq[j] === seq[j + 1] ? { line: [] } : CALC.car.path(base.snaps[seq[j]], base.snaps[seq[j + 1]]);
+      c = base.legCache[key] = { sec: base.T[seq[j]][seq[j + 1]], m: base.L[seq[j]][seq[j + 1]], line: pth.line || [] };
     }
     legs.push(c);
   }
@@ -339,11 +557,12 @@ function walkNet() {
     .then(function (wt) { return CALC.walkNet = new sunroRoad.Network(wt.filter(Boolean), "walk"); });
 }
 
-function showDay(di) {
-  var r = CALC.plan, d = r.days[di];
-  Array.prototype.forEach.call($("dayTabs").children, function (b, i) { b.className = i === di ? "" : "ghost"; });
-  var legs = legsOf(d.order);
-  var stops = d.order.map(function (k, j) { return { s: CALC.sites[k - 1], k: k, leg: legs[j], walk: 0 }; });
+var showToken = 0;
+function showView(vi) {
+  CUR = vi; var v = VIEWS[vi], base = v.base, tok = ++showToken;
+  renderTabs();
+  var legs = legsOf(v.order, base);
+  var stops = v.order.map(function (k, j) { return { s: base.sites[k - 1], k: k, leg: legs[j], walk: 0 }; });
   stops.forEach(function (st, j) { if (j > 0 && sunroRoad.hav(stops[j - 1].s.lat, stops[j - 1].s.lng, st.s.lat, st.s.lng) < 15) st.walk = -1; });
   var needWalk = stops.some(function (st, j) { var h = j > 0 && sunroRoad.hav(stops[j - 1].s.lat, stops[j - 1].s.lng, st.s.lat, st.s.lng); return j > 0 && h >= 15 && h <= 100; });
   var wp = needWalk ? walkNet().then(function (walk) {
@@ -355,36 +574,91 @@ function showDay(di) {
       var dd = pa.off + walk.oneToMany(pa, [pb], 200)[0] + pb.off;
       if (dd <= 100) st.walk = Math.round(dd / 10) * 10;
     });
-  }) : Promise.resolve();
+  }).catch(function () {}) : Promise.resolve();
   wp.then(function () {
-    show(stops, legs, d, r.days.length);
-    drawMap(stops, legs, CALC.S0, CALC.E0);
+    if (tok !== showToken) return;
+    show(v, stops, legs);
+    drawMap(stops, legs, base.S0, base.E0);
   });
 }
 
-function show(stops, legs, d, nDays) {
+function show(v, stops, legs) {
   var totS = legs.reduce(function (a, l) { return a + l.sec; }, 0), totM = legs.reduce(function (a, l) { return a + l.m; }, 0);
+  var W = workSec(), t = departSec();
+  stops.forEach(function (st) { t += st.leg.sec; st.arr = t; t += W; });
+  var back = legs[legs.length - 1], endT = t + back.sec;
   var walkN = stops.filter(function (s) { return s.walk; }).length;
-  var head = nDays > 1 ? d.day + "일차 · " : "오늘 ";
+  var head = v.kind === "island" ? v.label + " · " : (v.nDays > 1 ? v.label + " · " : "오늘 ");
+  var d = v.kind === "day" && CALC.plan ? CALC.plan.days[v.day - 1] : null;
   $("sum").textContent = head + stops.length + "곳 · 총 약 " + fmtKm(totM) + " · 운전 약 " + fmtMin(totS) + (walkN ? " · 도보 가능 " + walkN + "곳" : "") +
-    (d.over && nDays > 1 ? " · 묶음 때문에 기준보다 " + d.over + "곳 많음" : "");
+    (d && d.over && v.nDays > 1 && !v.edited ? " · 묶음 때문에 기준보다 " + d.over + "곳 많음" : "");
+  $("timeLine").innerHTML = "출발 <b>" + hm(departSec()) + "</b> → 복귀 예정 <b>" + hm(endT) + "</b> (운전 " + fmtDur(totS) + " + 작업 " + Math.round(W / 60) + "분×" + stops.length + "곳 = 총 " + fmtDur(endT - departSec()) + ")" +
+    (endT >= 18 * 3600 ? ' <span class="bad">· 18시를 넘깁니다</span>' : "") +
+    (v.kind === "island" ? '<br><span class="bad">섬 안 첫 곳(1번)에서 시작·끝난다고 보고 계산했습니다. 배 시간은 따로 확인하세요.</span>' : "");
+  $("btnAuto").hidden = stops.length < 2;
+  $("editMsg").textContent = NOTE ? NOTE : v.edited ? "✎ 손으로 바꾼 순서입니다. [이 날 순서 다시 자동으로]를 누르면 되돌립니다." : "▲▼로 순서를 바꾸거나, 다른 날로 옮길 수 있습니다.";
+  var dayViews = VIEWS.map(function (x, i) { return { x: x, i: i }; }).filter(function (o) { return o.x.kind === "day" && o.i !== CUR; });
   var ol = $("res"); ol.innerHTML = "";
   stops.forEach(function (st, i) {
-    var li = document.createElement("li"), it = st.s.it, gi = CALC.plan.clusterOf[st.k];
-    li.innerHTML = '<div class="no">' + (i + 1) + "</div><div><b>" + esc(it.road || it.jibun) + "</b>" +
+    var li = document.createElement("li"), it = st.s.it, gi = v.kind === "day" && CALC.plan ? CALC.plan.clusterOf[st.k] : undefined;
+    li.innerHTML = '<div class="no">' + (i + 1) + '</div><div class="body"><span class="arr">' + hm(st.arr) + "</span> <b>" + esc(it.road || it.jibun) + "</b>" +
       (st.walk > 0 ? '<span class="tag">도보 가능 (약 ' + st.walk + "m)</span>" : st.walk < 0 ? '<span class="tag">같은 위치</span>' : "") +
       (gi !== undefined ? '<span class="tag g">묶음 ' + CALC.groupName[gi] + "</span>" : "") +
       (it.approx ? '<span class="tag w">근사 위치</span>' : "") +
-      '<div class="small">' + (i === 0 ? "출발지에서 " : "앞 곳에서 ") + fmtKm(st.leg.m) + " · 약 " + fmtMin(st.leg.sec) +
+      '<div class="small">' + (i === 0 ? (v.kind === "island" ? "섬 시작점에서 " : "출발지에서 ") : "앞 곳에서 ") + fmtKm(st.leg.m) + " · 약 " + fmtMin(st.leg.sec) +
       (st.s.memo ? " · 메모: " + esc(st.s.memo) : "") + (it.road ? " · " + esc(it.jibun) : "") + "</div></div>";
+    var ctl = document.createElement("div"); ctl.className = "ctl";
+    var up = document.createElement("button"); up.className = "mv"; up.textContent = "▲"; up.title = "위로"; up.disabled = i === 0;
+    up.onclick = function () { swap(i, i - 1); };
+    var dn = document.createElement("button"); dn.className = "mv"; dn.textContent = "▼"; dn.title = "아래로"; dn.disabled = i === stops.length - 1;
+    dn.onclick = function () { swap(i, i + 1); };
+    ctl.appendChild(up); ctl.appendChild(dn);
+    if (v.kind === "day" && dayViews.length) {
+      var sel = document.createElement("select"); sel.className = "mvday";
+      var o0 = document.createElement("option"); o0.value = ""; o0.textContent = "다른 날로"; sel.appendChild(o0);
+      dayViews.forEach(function (o) { var op = document.createElement("option"); op.value = o.i; op.textContent = o.x.label + "로"; sel.appendChild(op); });
+      sel.onchange = function () { if (sel.value !== "") moveTo(i, +sel.value); };
+      ctl.appendChild(sel);
+    }
+    li.appendChild(ctl);
     ol.appendChild(li);
   });
-  var back = legs[legs.length - 1];
-  $("backLine").textContent = "복귀까지 " + fmtKm(back.m) + " · 약 " + fmtMin(back.sec) + "  (도로 지도 " + CALC.tiles.length + "칸, 시간표 " + CALC.ms + "ms)";
+  $("backLine").textContent = (v.kind === "island" ? "시작점으로 돌아가기까지 " : "복귀까지 ") + fmtKm(back.m) + " · 약 " + fmtMin(back.sec) + " · 복귀 예정 " + hm(endT) +
+    "  (도로 지도 " + CALC.tiles.length + "칸, 시간표 " + CALC.ms + "ms)";
   $("prog").textContent = "";
-  buildLink(stops, totM, nDays > 1 ? d.day + "/" + nDays : "");
+  var label = v.kind === "island" ? v.label : (v.nDays > 1 ? v.day + "/" + v.nDays : "");
+  buildLink(stops, totM, label, hm(endT));
   $("qr").hidden = true; $("shareMsg").textContent = "";
+  NOTE = "";
 }
+
+/* ---------- 손으로 순서 바꾸기 ---------- */
+function swap(a, b) {
+  var v = VIEWS[CUR], t = v.order[a]; v.order[a] = v.order[b]; v.order[b] = t; v.edited = true;
+  showView(CUR);
+}
+function moveTo(j, target) {
+  var v = VIEWS[CUR], to = VIEWS[target], T = to.base.T, end = T.length - 1;
+  var k = v.order.splice(j, 1)[0], best = 0, bc = Infinity;
+  for (var p = 0; p <= to.order.length; p++) {     // 가장 덜 돌아가는 자리에 끼워 넣기
+    var a = p ? to.order[p - 1] : 0, b = p < to.order.length ? to.order[p] : end;
+    var c = T[a][k] + T[k][b] - T[a][b];
+    if (c < bc) { bc = c; best = p; }
+  }
+  to.order.splice(best, 0, k); v.edited = to.edited = true;
+  if (!v.order.length) {                            // 빈 날은 없앰
+    VIEWS.splice(CUR, 1);
+    var days = VIEWS.filter(function (x) { return x.kind === "day"; });
+    days.forEach(function (x, i) { x.day = i + 1; x.label = days.length > 1 ? (i + 1) + "일차" : "오늘"; x.nDays = days.length; });
+    if (CALC.plan) CALC.plan = null;
+    CUR = Math.min(CUR, VIEWS.length - 1);
+  }
+  NOTE = "✎ " + (j + 1) + "번 곳을 " + to.label + " " + (best + 1) + "번째로 옮겼습니다.";
+  showView(CUR);
+}
+$("btnAuto").onclick = function () {
+  var v = VIEWS[CUR]; v.order = sunroDays.solveOrder(v.base.T, v.order); v.edited = false; showView(CUR);
+};
 
 /* ---------- 지도 그림 (OpenStreetMap 바탕 + 실제 경로) ---------- */
 function drawMap(stops, legs, S0, E0) {
@@ -405,19 +679,20 @@ function drawMap(stops, legs, S0, E0) {
   }
   var ox = (x0 + x1) / 2 - W / 2, oy = (y0 + y1) / 2 - H / 2;
   cv.width = W; cv.height = H; cv.hidden = false;
-  var cx = cv.getContext("2d");
+  var cx = cv.getContext("2d"), tok = showToken;
   cx.fillStyle = "#e9ecef"; cx.fillRect(0, 0, W, H);
   var t0x = Math.floor(ox / 256), t0y = Math.floor(oy / 256), t1x = Math.floor((ox + W) / 256), t1y = Math.floor((oy + H) / 256);
   var jobs = [], fail = 0;
   for (var tx = t0x; tx <= t1x; tx++) for (var ty = t0y; ty <= t1y; ty++) (function (tx, ty) {
     jobs.push(new Promise(function (ok) {
       var im = new Image();
-      im.onload = function () { cx.drawImage(im, tx * 256 - ox, ty * 256 - oy); ok(); };
+      im.onload = function () { if (tok === showToken) cx.drawImage(im, tx * 256 - ox, ty * 256 - oy); ok(); };
       im.onerror = function () { fail++; ok(); };
       im.src = "https://tile.openstreetmap.org/" + z + "/" + tx + "/" + ty + ".png";
     }));
   })(tx, ty);
   var overlay = function () {
+    if (tok !== showToken) return;
     var P = function (q) { var p = px(q[0], q[1], z); return [p[0] - ox, p[1] - oy]; };
     var u = W / 800;
     cx.lineJoin = "round"; cx.lineCap = "round";
@@ -446,6 +721,7 @@ function drawMap(stops, legs, S0, E0) {
   };
   overlay();   // 바탕 그림을 기다리는 동안에도 경로는 먼저 보이게
   Promise.all(jobs).then(function () {
+    if (tok !== showToken) return;
     overlay();
     $("mapMsg").textContent = (fail ? "지도 바탕 그림 일부(" + fail + "장)를 받지 못했습니다. 경로와 번호는 그대로 맞습니다. " : "") +
       "파란 선 = 앱이 계산한 경로(실제 길은 네이버 안내), 회색 선 = 복귀. 손가락으로 벌려 확대할 수 있습니다.";
@@ -458,14 +734,18 @@ function b64url(str) {
   for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-function buildLink(stops, totM, dayLabel) {
-  // [표시 이름, 위도, 경도, 메모, 도보m, 구간km, 네이버 검색용 완성 주소]
-  var pack = { v: 2, t: Math.round(totM / 100) / 10, d: dayLabel || "", s: stops.map(function (st) {
+var LAST = null;
+function buildLink(stops, totM, dayLabel, endHM) {
+  LAST = [stops, totM, dayLabel, endHM];
+  var sendMemo = $("sendMemo").checked;
+  // [표시 이름, 위도, 경도, 메모, 도보m, 구간km, 네이버 검색용 완성 주소, 도착 예정 시각]
+  var pack = { v: 3, t: Math.round(totM / 100) / 10, d: dayLabel || "", e: endHM || "", s: stops.map(function (st) {
     var it = st.s.it;
-    return [it.road || it.jibun, +it.lat.toFixed(5), +it.lng.toFixed(5), st.s.memo || "", st.walk > 0 ? st.walk : (st.walk < 0 ? 1 : 0), Math.round(st.leg.m / 100) / 10, it.road || ""];
+    return [it.road || it.jibun, +it.lat.toFixed(5), +it.lng.toFixed(5), sendMemo ? (st.s.memo || "") : "", st.walk > 0 ? st.walk : (st.walk < 0 ? 1 : 0), Math.round(st.leg.m / 100) / 10, it.road || "", hm(st.arr)];
   }) };
   lastLink = new URL("sheet.html", location.href).href + "#" + b64url(JSON.stringify(pack));
-  $("linkInfo").textContent = (dayLabel ? dayLabel.replace("/", "일차 순서표 (") + "일 중) · " : "") + "링크 길이 " + lastLink.length + "자 (주소·메모는 링크 안에 담기며, 서버에 저장되지 않습니다)";
+  var lab = /\//.test(dayLabel) ? dayLabel.replace("/", "일차 순서표 (") + "일 중) · " : (dayLabel ? dayLabel + " 순서표 · " : "");
+  $("linkInfo").textContent = lab + "링크 길이 " + lastLink.length + "자 (주소·메모는 링크 안에 담기며, 서버에 저장되지 않습니다)";
 }
 function showQR() {
   if (!lastLink) return;
@@ -480,10 +760,10 @@ function showQR() {
 $("btnQR").onclick = showQR;
 $("btnShare").onclick = function () {
   if (!lastLink) return;
-  if (navigator.share) navigator.share({ title: "순서표", text: "오늘 방문 순서표", url: lastLink }).catch(function () {});
+  if (navigator.share) navigator.share({ title: "순서표", text: "방문 순서표", url: lastLink }).catch(function () {});
   else $("shareMsg").textContent = "이 기기에서는 공유창을 쓸 수 없습니다. [링크 복사]를 눌러 카톡에 붙여넣으세요.";
 };
-$("btnSms").onclick = function () { if (lastLink) location.href = "sms:?&body=" + encodeURIComponent("오늘 방문 순서표 " + lastLink); };
+$("btnSms").onclick = function () { if (lastLink) location.href = "sms:?&body=" + encodeURIComponent("방문 순서표 " + lastLink); };
 $("btnCopy").onclick = function () {
   if (!lastLink) return;
   var done = function () { $("shareMsg").textContent = "링크를 복사했습니다."; };
